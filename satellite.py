@@ -22,12 +22,12 @@ import numpy as np
 
 class Satellite(object):
 
-    def __init__(self, initData, subsetList=['optical','orbital']):
+    def __init__(self, initData, subsetList=['optical','orbital','groundStation']):
         setattr(self,'initParams',initData)
         setattr(self,'subsetList', subsetList)
         for subset in initData:
             setattr(self, subset, initData[subset])
-        self.earthR = 6378.14e3 #[m] - Earth Radius using Spherical Model
+        self.earthR = [6378.14e3,'m'] #[m] - Earth Radius using Spherical Model
         '''
         for dictionary in initial_data:
             for key in dictionary:
@@ -44,6 +44,7 @@ class Satellite(object):
         return self
 
     def get(self,param):
+        #TODO: Fix for case of multiple param names in different subsets
         for subset in self.subsetList:
             try:
                 value = getattr(self,subset)[param][0] 
@@ -52,7 +53,17 @@ class Satellite(object):
                 pass
         return None
         #quickly get param raw value from name
-
+    
+    def getU(self,param):
+        #TODO: Fix for case of multiple param names in different subsets
+        for subset in self.subsetList:
+            try:
+                value = getattr(self,subset)[param][1] 
+                return value
+            except:
+                pass
+        return None
+        #quickly get param raw value from name
 
     def merge_dicts(self, x, y):
         z = x.copy()   # start with x's keys and values
@@ -74,34 +85,38 @@ class Satellite(object):
 
     def calculateOrbitalParameters(self,subsetName='orbital',results = {}):
         #from IPython import embed; embed()
-        results['period'] = [(1.658669e-4)*(self.earthR+self.get('altitude'))**(1.5), 'mins'] #P [mins]
+        if self.getU('altitude') != 'm':
+            raise Exception('altitude not in meters: %s' % self.getU('altitude'))
+        results['period'] = [(1.658669e-4)*(self.earthR[0]+self.get('altitude'))**(1.5), 'min'] #P [mins]
         results['angularVelocity'] = [np.deg2rad(6.0/results['period'][0]), 'rad/s'] #omega [deg/s] ; <= 0.071 deg/s (max angular vel for circular orbit)
-        results['groundTrackVelocity'] = [2*np.pi*self.earthR/results['period'][0], 'm/s'] #V_g [m/s] ; <= 7905.0 m/s for circular orbit
+        results['groundTrackVelocity'] = [2*np.pi*self.earthR[0]/results['period'][0], '%s/s'%self.earthR[1]] #V_g [m/s] ; <= 7905.0 m/s for circular orbit
         results['nodeShift'] = [(results['period'][0]/1436.0)*360.0, 'deg'] #dL [deg] - spacing between sucessive node crossings on the equator
+        results['earthAngularRadius'] = [np.arcsin(self.earthR[0]/(self.earthR[0]+self.get('altitude'))),'rad'] #p [rad] - angular radius of spherical earth wrt spacecraft pov
         self.setSubset(subsetName, results)
         return self
 
     def calculateSensorViewingParams(self, subsetName='optical',results = {}):
         #TODO: This func assumes spherical model of earth, eventually will use earthOblatenessModel()
-        results['earthAngularRadius'] = [np.arcsin(self.earthR/(self.earthR+self.get('altitude'))),'rad'] #p [rad] - angular radius of spherical earth wrt spacecraft pov
-        results['maxHorizonDistance'] = [self.earthR*np.tan(np.deg2rad(90.0)-results['earthAngularRadius'][0]),'m'] #D_max [m] - distance to horizon
-        results['elevationAngleMin'] = [np.arccos(np.sin(np.deg2rad(self.get('nadirAngleMaxDeg'))) / np.sin(results['earthAngularRadius'][0])),'rad'] #epsilon_min [rad] - at target between spacecraft and local horizontal
+        results['maxHorizonDistance'] = [self.earthR[0]*np.tan(np.deg2rad(90.0)-self.get('earthAngularRadius')), self.earthR[1]] #D_max [m] - distance to horizon
+        results['elevationAngleMin'] = [np.arccos(np.sin(np.deg2rad(self.get('nadirAngleMaxDeg'))) / np.sin(self.get('earthAngularRadius'))),'rad'] #epsilon_min [rad] - at target between spacecraft and local horizontal
         results['incidenceAngleMax'] = [(np.pi/2) - results['elevationAngleMin'][0],'rad']
-        results['earthCentralAngle'] = [(np.pi/2) - np.deg2rad(self.get('nadirAngleMaxDeg')) - results['elevationAngleMin'][0],'rad'] #lambda [rad] - at center of earth from subsatellite point to nadirMax
-        results['distanceToMaxOffNadir'] = [self.earthR*np.sin(results['earthCentralAngle'][0])/np.sin(np.deg2rad(self.get('nadirAngleMaxDeg'))),'m'] #Dn_max [m] - i.e. Slant range; distance from satellite to max off-nadir target
-        results['swathWidthAngle'] = [2*results['earthCentralAngle'][0],'rad'] #[rad] - determines coverage
+        results['earthCentralAngleMax'] = [(np.pi/2) - np.deg2rad(self.get('nadirAngleMaxDeg')) - results['elevationAngleMin'][0],'rad'] #lambda [rad] - at center of earth from subsatellite point to nadirMax
+        results['distanceToOffNadirMax'] = [self.earthR[0]*np.sin(results['earthCentralAngleMax'][0])/np.sin(np.deg2rad(self.get('nadirAngleMaxDeg'))),self.earthR[1]] #Dn_max [m] - i.e. Slant range; distance from satellite to max off-nadir target
+        results['swathWidthAngle'] = [2*results['earthCentralAngleMax'][0],'rad'] #[rad] - determines coverage
         self.setSubset(subsetName, results)
         return self
     
     def calculatePixelDataParams(self, subsetName='optical',results = {}):
-        results["IFOV"] = [self.get('alongTrackGSD_ECAMax') / self.get('distanceToMaxOffNadir'),'rad'] #IFOV [rad] - Instantaneous Field of View; one pixel width
-        results["crossTrackPixelRes_ECAMax"] = [self.get('alongTrackGSD_ECAMax') / np.cos(self.get('incidenceAngleMax')),'m'] #X_max [m] - max cross-track pixel resolution @ ECAMax
-        results["crossTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),'m'] #X [m] - cross-track Ground Pixel Resolution @ Nadir
-        results["alongTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),'m'] #Y [m] - along-track Ground Pixel Resolution @ Nadir
+        if self.getU('alongTrackGSD_ECAMax') != self.getU('distanceToOffNadirMax'):
+            raise Exception('Units dont match: alongTrackGSD_ECAMax [{}], distanceToOffNadirMax, [{}]'.format(self.getU('alongTrackGSD_ECAMax'),self.getU('distanceToOffNadirMax')))
+        results["IFOV"] = [self.get('alongTrackGSD_ECAMax') / self.get('distanceToOffNadirMax'),'rad'] #IFOV [rad] - Instantaneous Field of View; one pixel width
+        results["crossTrackPixelRes_ECAMax"] = [self.get('alongTrackGSD_ECAMax') / np.cos(self.get('incidenceAngleMax')),self.getU('alongTrackGSD_ECAMax')] #X_max [m] - max cross-track pixel resolution @ ECAMax
+        results["crossTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),self.getU('altitude')] #X [m] - cross-track Ground Pixel Resolution @ Nadir
+        results["alongTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),self.getU('altitude')] #Y [m] - along-track Ground Pixel Resolution @ Nadir
         results["crossTrackPixelNum"] = [2*np.deg2rad(self.get('nadirAngleMaxDeg'))/results['IFOV'][0],'num'] #Z_c [num] - num of cross-track pixels
         results["alongTrackSwathNumRate"] = [self.get('groundTrackVelocity') / results['alongTrackGPR_Nadir'][0], 'num/s'] #Z_a [num/s] - num of swaths recorded per sec
         results["pixelRecordRate"] = [results['crossTrackPixelNum'][0] * results['alongTrackSwathNumRate'][0],'num/s'] #Z [num/s] - num of pixels recorded per sec
-        results["dataRate"] = [results['pixelRecordRate'][0] * self.get('pixelBitEncodeNum'),'Mbps'] #DR [Mbps] - data rate
+        results["dataRate"] = [results['pixelRecordRate'][0] * self.get('pixelBitEncodeNum'),'%sps'%self.getU('pixelBitEncodeNum')] #DR [Mbps] - data rate
         self.setSubset(subsetName, results)
         return self
 
@@ -124,6 +139,27 @@ class Satellite(object):
         #results["opticsPSF"] = 
         self.setSubset(subsetName, results)
         return self
+
+    def calculateGroundStationParams(self, subsetName='groundStation', results={}):
+        #SMAD - pg. 121
+        #TODO verify results
+        latPole = np.deg2rad(90.0 - self.get('inclination'))
+        longPole = np.deg2rad(self.get('lNode') - 90.0)
+        deltaLong = np.abs(longPole - np.deg2rad(self.get('gsLong')))
+        results['gsEarthCentralAngleMin'] = [np.arcsin(np.sin(latPole)*np.sin(np.deg2rad(self.get('gsLat'))) + np.cos(latPole)*np.cos(np.deg2rad(self.get('gsLat')))*np.cos(deltaLong)),'rad']
+        results['gsNadirAngleMin'] = [np.arctan((np.sin(self.get('earthAngularRadius'))*np.sin(results['gsEarthCentralAngleMin'][0]))/(1 - np.sin(self.get('earthAngularRadius'))*np.cos(results['gsEarthCentralAngleMin'][0]))),'rad']
+        results['gsElevationAngleMax'] = [(np.pi/2) - results['gsEarthCentralAngleMin'][0] - results['gsNadirAngleMin'][0],'rad']
+        results['gsDistanceMin'] = [self.earthR[0]*(np.sin(results['gsEarthCentralAngleMin'][0])/np.sin(results['gsNadirAngleMin'][0])),'m']
+        results['gsAngularRateMax'] = [np.deg2rad((2*np.pi*(self.earthR[0]+self.get('altitude'))) / (self.get('period')*results['gsDistanceMin'][0]))/60.0,'rad/s']
+        results['gsAzimuthRange'] = [2*np.arccos(np.tan(results['gsEarthCentralAngleMin'][0]) / np.tan(self.get('earthCentralAngleMax'))),'rad']
+        results['gsViewTime'] = [(self.get('period') / 180.0)*np.arccos(np.cos(self.get('earthCentralAngleMax'))/results['gsEarthCentralAngleMin'][0]),'min']
+        self.setSubset(subsetName, results)
+        return self
+
+    def calculateCommsParams(self, subsetName='comms', results={}):
+        pass
+        #F = (1/)
+        #results["dataQuantity"] = self.get('dataRate')*()
 
 
     def earthOblatenessModeling(satVectorEFF):

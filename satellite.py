@@ -19,15 +19,17 @@ adcs: all parameters relating to the adcs
 '''
 
 import numpy as np
+import scipy.constants
 
 class Satellite(object):
 
-    def __init__(self, initData, subsetList=['optical','orbital','groundStation']):
+    def __init__(self, initData, ):
         setattr(self,'initParams',initData)
-        setattr(self,'subsetList', subsetList)
+        setattr(self,'subsetList', initData.keys())
         for subset in initData:
             setattr(self, subset, initData[subset])
         self.earthR = [6378.14e3,'m'] #[m] - Earth Radius using Spherical Model
+
         '''
         for dictionary in initial_data:
             for key in dictionary:
@@ -140,6 +142,26 @@ class Satellite(object):
         self.setSubset(subsetName, results)
         return self
 
+    def calculateCustomOpticalParams(self, subset='csOptical',results={}):
+        '''
+        csSensorSize
+        csAspectRatio
+        csLensFormat
+        csFocalLength
+        '''
+        results['csImageRadius'] = [(self.get('csSensorSize')/2.0),'m'] #imaging radius in m(of sensor)
+        results['csGroundRadius'] = [(self.get('csImageRadius')*(self.get('altitude')))/self.get('csFocalLength'),'m'] #max ground radius in m (cicular)
+        results['csDectectorArea'] = [np.pi*(results['csImageRadius']**2),'m^2'] #area of sensor
+        results['csFovDiameter'] = [2*atan(results['csImageRadius']/self.get('csFocalLength')),'rad'] #angular diameter of FOV in radians
+        #areaG = pi*(groundRadius**2) #ground object FOV in m squared (circular)
+        results['csDiagonalLength'] = [(self.get('csSensorSize')/self.get('csLensFormat')*(2*(results['csGroundRadius']))),'m'] #ground radius adjusted for sensor size and lens radius 
+        results['csArea2SensorHypotenuseRatio'] = [results['csDiagonalLength']/(self.get('csSensorSize')),'num'] #finding ratio of area to sensor hypotenous
+        results['csSensorDiagonal'] = [np.linalg.norm(self.get('csAspectRatio')),'num'] #finding sensor diagonal
+        results['csSensorRatio'] = [self.get('csSensorSize')/self.get('csSensorDiagonal'),'num'] #the ratio of the given sensor size to the ratio based on its aspects
+        results['csImageArea'] = [(results['csArea2SensorHypotenuseRatio']*(np.array(self.get('csAspectRatio'))*sensorRatio)).tolist(),'[m,m]']
+        self.setSubset(subsetName, results)
+        return self
+
     def calculateGroundStationParams(self, subsetName='groundStation', results={}):
         #SMAD - pg. 121
         #TODO verify results
@@ -153,13 +175,17 @@ class Satellite(object):
         results['gsAngularRateMax'] = [np.deg2rad((2*np.pi*(self.earthR[0]+self.get('altitude'))) / (self.get('period')*results['gsDistanceMin'][0]))/60.0,'rad/s']
         results['gsAzimuthRange'] = [2*np.arccos(np.tan(results['gsEarthCentralAngleMin'][0]) / np.tan(self.get('earthCentralAngleMax'))),'rad']
         results['gsViewTime'] = [(self.get('period') / 180.0)*np.arccos(np.cos(self.get('earthCentralAngleMax'))/results['gsEarthCentralAngleMin'][0]),'min']
+        results['gsViewTimeMax'] = [self.get('period')*(self.get('earthCentralAngleMax')/np.pi),'min']
         self.setSubset(subsetName, results)
         return self
 
     def calculateCommsParams(self, subsetName='comms', results={}):
-        pass
-        #F = (1/)
-        #results["dataQuantity"] = self.get('dataRate')*()
+        F = (1/self.get('earthCentralAngleMax'))*np.arccos(np.cos(self.get('earthCentralAngleMax'))/np.cos(self.get('gsEarthCentralAngleMin')))
+        F *= 0.8 #80% for Circular LEO, and 86% or more of all passes will have F > 0.5
+        results["dataQuantity"] = self.get('dataRate')*(F*self.get('gsViewTimeMax') - self.get('gsInitCommTime'))
+        #energyPerBit2noiseDensityRatio of 5-10 adaquate for recieving binary data with low probability of error with some forward error correction
+        results["energyPerBit2noiseDensityRatio"] = self.get('transmitterPower')*self.get('transmitter2antennaGainLineLoss')*self.get('transmitAntennaGain')\
+            self.get('spaceLoss')*self.get('transmissionPathLoss')*self.get('receiveAntennaGain')/(scipy.constants.Boltzmann*self.get('systemNoiseTemperature')*self.get('dataRate'))
 
 
     def earthOblatenessModeling(satVectorEFF):

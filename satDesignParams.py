@@ -16,9 +16,17 @@ FireSatParams = {
 		'imagingQualityFactor': [1.1,'num'], #Q [num] - 0.5<Q<2 (1.1 for good img quality); design param
 		'operatingWavelength': [4.2e-6,'m'], #lambda [m] - based on subject trades; design param
 	},
+	'csOptical': {
+		'csSensorSize': [4.0e-3,'m'], #sensor size in mm
+		'csAspectRatio': [[4.0,3.0],'[num,num]'], #aspect ratio of sensor mm
+		'csLensFormat': [6.0e-3,'m'], #lens format in mm
+		'csFocalLength': [16.0e-3,'m']
+	},
 	'groundStation': {
 		'gsLat': [42.304524,'deg'], #WinSAT - UWindsor CEI 42.304524, -83.062185
 		'gsLong': [-83.062185,'deg'],
+		'gsInitCommTime': [2.0, 'min'],
+		'gsMissedPassesMargin': [2.5, 'num'] #~2-3
 	}
 }
 

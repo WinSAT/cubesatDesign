@@ -28,7 +28,7 @@ class Satellite(object):
         setattr(self,'subsetList', initData.keys())
         for subset in initData:
             setattr(self, subset, initData[subset])
-        self.earthR = [6378.14e3,'m'] #[m] - Earth Radius using Spherical Model
+        self.earthR = [6378.14,'km'] #[m] - Earth Radius using Spherical Model
 
         '''
         for dictionary in initial_data:
@@ -87,31 +87,31 @@ class Satellite(object):
 
     def calculateOrbitalParameters(self,subsetName='orbital',results = {}):
         #from IPython import embed; embed()
-        if self.getU('altitude') != 'm':
-            raise Exception('altitude not in meters: %s' % self.getU('altitude'))
-        results['period'] = [(1.658669e-4)*(self.earthR[0]+self.get('altitude'))**(1.5), 'min'] #P [mins]
+        if self.getU('altitude') != 'km':
+            raise Exception('altitude not in km: %s' % self.getU('altitude'))
+        results['period'] = [(1.658669e-4)*((self.earthR[0]+self.get('altitude')))**(1.5), 'min'] #P [mins]
         results['angularVelocity'] = [np.deg2rad(6.0/results['period'][0]), 'rad/s'] #omega [deg/s] ; <= 0.071 deg/s (max angular vel for circular orbit)
-        results['groundTrackVelocity'] = [2*np.pi*self.earthR[0]/results['period'][0], '%s/s'%self.earthR[1]] #V_g [m/s] ; <= 7905.0 m/s for circular orbit
+        results['groundTrackVelocity'] = [2*np.pi*self.earthR[0]/(results['period'][0]*60.0), '%s/s'%self.earthR[1]] #V_g [m/s] ; <= 7905.0 m/s for circular orbit
         results['nodeShift'] = [(results['period'][0]/1436.0)*360.0, 'deg'] #dL [deg] - spacing between sucessive node crossings on the equator
         results['earthAngularRadius'] = [np.arcsin(self.earthR[0]/(self.earthR[0]+self.get('altitude'))),'rad'] #p [rad] - angular radius of spherical earth wrt spacecraft pov
         self.setSubset(subsetName, results)
+        print 'Subset: {}: {}\n'.format(subsetName,results)
         return self
 
     def calculateSensorViewingParams(self, subsetName='optical',results = {}):
         #TODO: This func assumes spherical model of earth, eventually will use earthOblatenessModel()
-        results['maxHorizonDistance'] = [self.earthR[0]*np.tan(np.deg2rad(90.0)-self.get('earthAngularRadius')), self.earthR[1]] #D_max [m] - distance to horizon
+        results['maxHorizonDistance'] = [self.earthR[0]*np.tan((np.pi/2)-self.get('earthAngularRadius')), self.earthR[1]] #D_max [m] - distance to horizon
         results['elevationAngleMin'] = [np.arccos(np.sin(np.deg2rad(self.get('nadirAngleMaxDeg'))) / np.sin(self.get('earthAngularRadius'))),'rad'] #epsilon_min [rad] - at target between spacecraft and local horizontal
         results['incidenceAngleMax'] = [(np.pi/2) - results['elevationAngleMin'][0],'rad']
         results['earthCentralAngleMax'] = [(np.pi/2) - np.deg2rad(self.get('nadirAngleMaxDeg')) - results['elevationAngleMin'][0],'rad'] #lambda [rad] - at center of earth from subsatellite point to nadirMax
         results['distanceToOffNadirMax'] = [self.earthR[0]*np.sin(results['earthCentralAngleMax'][0])/np.sin(np.deg2rad(self.get('nadirAngleMaxDeg'))),self.earthR[1]] #Dn_max [m] - i.e. Slant range; distance from satellite to max off-nadir target
         results['swathWidthAngle'] = [2*results['earthCentralAngleMax'][0],'rad'] #[rad] - determines coverage
         self.setSubset(subsetName, results)
+        print 'Subset: {}: {}\n'.format(subsetName,results)
         return self
     
     def calculatePixelDataParams(self, subsetName='optical',results = {}):
-        if self.getU('alongTrackGSD_ECAMax') != self.getU('distanceToOffNadirMax'):
-            raise Exception('Units dont match: alongTrackGSD_ECAMax [{}], distanceToOffNadirMax, [{}]'.format(self.getU('alongTrackGSD_ECAMax'),self.getU('distanceToOffNadirMax')))
-        results["IFOV"] = [self.get('alongTrackGSD_ECAMax') / self.get('distanceToOffNadirMax'),'rad'] #IFOV [rad] - Instantaneous Field of View; one pixel width
+        results["IFOV"] = [self.get('alongTrackGSD_ECAMax') / (self.get('distanceToOffNadirMax')*1000.0),'rad'] #IFOV [rad] - Instantaneous Field of View; one pixel width
         results["crossTrackPixelRes_ECAMax"] = [self.get('alongTrackGSD_ECAMax') / np.cos(self.get('incidenceAngleMax')),self.getU('alongTrackGSD_ECAMax')] #X_max [m] - max cross-track pixel resolution @ ECAMax
         results["crossTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),self.getU('altitude')] #X [m] - cross-track Ground Pixel Resolution @ Nadir
         results["alongTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),self.getU('altitude')] #Y [m] - along-track Ground Pixel Resolution @ Nadir
@@ -120,6 +120,7 @@ class Satellite(object):
         results["pixelRecordRate"] = [results['crossTrackPixelNum'][0] * results['alongTrackSwathNumRate'][0],'num/s'] #Z [num/s] - num of pixels recorded per sec
         results["dataRate"] = [results['pixelRecordRate'][0] * self.get('pixelBitEncodeNum'),'%sps'%self.getU('pixelBitEncodeNum')] #DR [Mbps] - data rate
         self.setSubset(subsetName, results)
+        print 'Subset: {}: {}\n'.format(subsetName,results)
         return self
 
     def calculateSensorIntegrationParams(self, subsetName='optical',results = {}):
@@ -184,7 +185,7 @@ class Satellite(object):
         F *= 0.8 #80% for Circular LEO, and 86% or more of all passes will have F > 0.5
         results["dataQuantity"] = self.get('dataRate')*(F*self.get('gsViewTimeMax') - self.get('gsInitCommTime'))
         #energyPerBit2noiseDensityRatio of 5-10 adaquate for recieving binary data with low probability of error with some forward error correction
-        results["energyPerBit2noiseDensityRatio"] = self.get('transmitterPower')*self.get('transmitter2antennaGainLineLoss')*self.get('transmitAntennaGain')\
+        results["energyPerBit2noiseDensityRatio"] = self.get('transmitterPower')*self.get('transmitter2antennaGainLineLoss')*self.get('transmitAntennaGain')*\
             self.get('spaceLoss')*self.get('transmissionPathLoss')*self.get('receiveAntennaGain')/(scipy.constants.Boltzmann*self.get('systemNoiseTemperature')*self.get('dataRate'))
 
 

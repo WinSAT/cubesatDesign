@@ -96,8 +96,8 @@ class Satellite(object):
         results['groundTrackVelocity'] = [2*np.pi*self.earthR[0]/(results['period'][0]*60.0), '%s/s'%self.earthR[1]] #V_g [m/s] ; <= 7905.0 m/s for circular orbit
         results['nodeShift'] = [(results['period'][0]/1436.0)*360.0, 'deg'] #dL [deg] - spacing between sucessive node crossings on the equator
         results['earthAngularRadius'] = [np.arcsin(self.earthR[0]/(self.earthR[0]+self.get('altitude'))),'rad'] #p [rad] - angular radius of spherical earth wrt spacecraft pov
-        results['eclipseMax'] = [(results['earthAngularRadius']/np.pi)*results['period'],'min']
-        results['daylightMax'] = [results['period']-results['eclipseMax'],'min']
+        results['eclipseMax'] = [(results['earthAngularRadius'][0]/np.pi)*results['period'][0],'min']
+        results['daylightMax'] = [results['period'][0]-results['eclipseMax'][0],'min']
         self.setSubset(subsetName, results)
         print 'Subset: {}: {}\n'.format(subsetName,results)
         return self
@@ -115,7 +115,7 @@ class Satellite(object):
         return self
     
     def calculatePixelDataParams(self, subsetName='optical',results = {}):
-        results["IFOV"] = [self.get('alongTrackGSD_ECAMax') / (self.get('distanceToOffNadirMax')*1000.0),'rad'] #IFOV [rad] - Instantaneous Field of View; one pixel width
+        results["IFOV"] = [self.get('alongTrackGSD_ECAMax') / (self.get('distanceToOffNadirMax')*1e3),'rad'] #IFOV [rad] - Instantaneous Field of View; one pixel width
         results["crossTrackPixelRes_ECAMax"] = [self.get('alongTrackGSD_ECAMax') / np.cos(self.get('incidenceAngleMax')),self.getU('alongTrackGSD_ECAMax')] #X_max [m] - max cross-track pixel resolution @ ECAMax
         results["crossTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),self.getU('altitude')] #X [m] - cross-track Ground Pixel Resolution @ Nadir
         results["alongTrackGPR_Nadir"] = [results['IFOV'][0] * self.get('altitude'),self.getU('altitude')] #Y [m] - along-track Ground Pixel Resolution @ Nadir
@@ -195,11 +195,14 @@ class Satellite(object):
     def calculateEpsParams(self, subsetName='eps', results={}):
         results['solarArrayPowerOutputDaylight'] = [(self.get('avgTotalPower')*((self.get('eclipseMax')/self.get('effSA2Batt2Load'))+(self.get('daylightMax')/self.get('effSA2Load'))))/self.get('daylightMax'),'W']
         results['powerOutputSunNormalEst'] = [self.get('solarCellEff')*self.solarIlluminationIntensity[0],'W/m^2']
-        results['powerProductionBOL'] = [results['powerOutputSunNormalEst']*self.get('solarArrayInherentDegradation')*np.cos(np.deg2rad(self.sunIncidentAngleDeg)),'W/m^2']
+        results['powerProductionBOL'] = [results['powerOutputSunNormalEst'][0]*self.get('solarArrayInherentDegradation')*np.cos(np.deg2rad(self.sunIncidentAngleDeg[0])),'W/m^2']
         results['lifeDegradation'] = [(1.0 - self.get('solarCellPerformanceDegradation'))**self.get('lifetimeNominal'),'num']
-        results['powerProductionEOL'] = [results['powerProductionBOL']*results['lifeDegradation'],'W/m^2']
-        results['solarArrayAreaEOL'] = [self.get('avgTotalPower')/results['powerProductionEOL'],'m^2']
+        results['powerProductionEOL'] = [results['powerProductionBOL'][0]*results['lifeDegradation'][0],'W/m^2']
+        results['solarArrayAreaEOL'] = [self.get('avgTotalPower')/results['powerProductionEOL'][0],'m^2']
         results['solarArrayMassEst'] = [(1.0/self.get('solarArraySpecificPerformance'))*self.get('avgTotalPower'),'kg']
+        self.setSubset(subsetName, results)
+        print 'Subset: {}: {}\n'.format(subsetName,results)
+        return self
 
 
     def earthOblatenessModeling(satVectorEFF):

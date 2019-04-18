@@ -3,7 +3,7 @@ import satellite
 
 FireSatParams = {
 	'orbital': {
-		'lifetimeNominal': [5, 'yr']
+		'lifetimeNominal': [5, 'yr'],
 		'altitude': [700.0,'km'], #[m]
 		'inclination': [50.0,'deg'], #WinSAT
 		'lNode': [0.0, 'deg'] #TODO ?? - Instantaneous Ascending Node, RAAN? 
@@ -75,5 +75,6 @@ sat = satellite.Satellite(FireSatParams)
 sat.calculateOrbitalParameters()
 sat.calculateSensorViewingParams()
 sat.calculatePixelDataParams()
+sat.calculateEpsParams()
 
 from IPython import embed; embed()

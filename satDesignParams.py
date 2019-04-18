@@ -3,6 +3,7 @@ import satellite
 
 FireSatParams = {
 	'orbital': {
+		'lifetimeNominal': [5, 'yr']
 		'altitude': [700.0,'km'], #[m]
 		'inclination': [50.0,'deg'], #WinSAT
 		'lNode': [0.0, 'deg'] #TODO ?? - Instantaneous Ascending Node, RAAN? 
@@ -27,6 +28,15 @@ FireSatParams = {
 		'gsLong': [-83.062185,'deg'],
 		'gsInitCommTime': [2.0, 'min'],
 		'gsMissedPassesMargin': [2.5, 'num'] #~2-3
+	},
+	'eps': {
+		'avgTotalPower': [110.0, 'W'],
+		'effSA2Batt2Load': [0.6, 'num'], #X_e - efficiency of Solar Arrays to Batt to Load - 0.6 for PPT, 0.65 for Direct Energy
+		'effSA2Load': [0.8, 'num'], #X_e - efficiency of Solar Arrays to Load directly - 0.8 for PPT, 0.85 for Direct Energy
+		'solarCellEff': [0.148, 'num'], #0.148 for Si, 0.185 for GaAs, 0.22 for Multijunction 
+		'solarArrayInherentDegradation': [0.77, 'num'], #nominal 0.77, range 0.49-0.88
+		'solarCellPerformanceDegradation': [0.0375, 'num/yr'], #3.75% for Si, 2.75% for GaAs, 0.5% for Multijunction
+		'solarArraySpecificPerformance': [25.0,'W/kg'],
 	}
 }
 

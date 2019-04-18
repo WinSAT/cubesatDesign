@@ -29,6 +29,8 @@ class Satellite(object):
         for subset in initData:
             setattr(self, subset, initData[subset])
         self.earthR = [6378.14,'km'] #[m] - Earth Radius using Spherical Model
+        self.solarIlluminationIntensity = [1367.0, 'W/m^2']
+        self.sunIncidentAngleDeg = [23.5, 'deg']
 
         '''
         for dictionary in initial_data:
@@ -94,6 +96,8 @@ class Satellite(object):
         results['groundTrackVelocity'] = [2*np.pi*self.earthR[0]/(results['period'][0]*60.0), '%s/s'%self.earthR[1]] #V_g [m/s] ; <= 7905.0 m/s for circular orbit
         results['nodeShift'] = [(results['period'][0]/1436.0)*360.0, 'deg'] #dL [deg] - spacing between sucessive node crossings on the equator
         results['earthAngularRadius'] = [np.arcsin(self.earthR[0]/(self.earthR[0]+self.get('altitude'))),'rad'] #p [rad] - angular radius of spherical earth wrt spacecraft pov
+        results['eclipseMax'] = [(results['earthAngularRadius']/np.pi)*results['period'],'min']
+        results['daylightMax'] = [results['period']-results['eclipseMax'],'min']
         self.setSubset(subsetName, results)
         print 'Subset: {}: {}\n'.format(subsetName,results)
         return self
@@ -187,6 +191,15 @@ class Satellite(object):
         #energyPerBit2noiseDensityRatio of 5-10 adaquate for recieving binary data with low probability of error with some forward error correction
         results["energyPerBit2noiseDensityRatio"] = self.get('transmitterPower')*self.get('transmitter2antennaGainLineLoss')*self.get('transmitAntennaGain')*\
             self.get('spaceLoss')*self.get('transmissionPathLoss')*self.get('receiveAntennaGain')/(scipy.constants.Boltzmann*self.get('systemNoiseTemperature')*self.get('dataRate'))
+
+    def calculateEpsParams(self, subsetName='eps', results={}):
+        results['solarArrayPowerOutputDaylight'] = [(self.get('avgTotalPower')*((self.get('eclipseMax')/self.get('effSA2Batt2Load'))+(self.get('daylightMax')/self.get('effSA2Load'))))/self.get('daylightMax'),'W']
+        results['powerOutputSunNormalEst'] = [self.get('solarCellEff')*self.solarIlluminationIntensity[0],'W/m^2']
+        results['powerProductionBOL'] = [results['powerOutputSunNormalEst']*self.get('solarArrayInherentDegradation')*np.cos(np.deg2rad(self.sunIncidentAngleDeg)),'W/m^2']
+        results['lifeDegradation'] = [(1.0 - self.get('solarCellPerformanceDegradation'))**self.get('lifetimeNominal'),'num']
+        results['powerProductionEOL'] = [results['powerProductionBOL']*results['lifeDegradation'],'W/m^2']
+        results['solarArrayAreaEOL'] = [self.get('avgTotalPower')/results['powerProductionEOL'],'m^2']
+        results['solarArrayMassEst'] = [(1.0/self.get('solarArraySpecificPerformance'))*self.get('avgTotalPower'),'kg']
 
 
     def earthOblatenessModeling(satVectorEFF):

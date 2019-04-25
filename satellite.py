@@ -193,17 +193,22 @@ class Satellite(object):
             self.get('spaceLoss')*self.get('transmissionPathLoss')*self.get('receiveAntennaGain')/(scipy.constants.Boltzmann*self.get('systemNoiseTemperature')*self.get('dataRate'))
 
     def calculateEpsParams(self, subsetName='eps', results={}):
-        results['solarArrayPowerOutputDaylight'] = [(self.get('avgTotalPower')*((self.get('eclipseMax')/self.get('effSA2Batt2Load'))+(self.get('daylightMax')/self.get('effSA2Load'))))/self.get('daylightMax'),'W']
-        results['powerOutputSunNormalEst'] = [self.get('solarCellEff')*self.solarIlluminationIntensity[0],'W/m^2']
-        results['powerProductionBOL'] = [results['powerOutputSunNormalEst'][0]*self.get('solarArrayInherentDegradation')*np.cos(np.deg2rad(self.sunIncidentAngleDeg[0])),'W/m^2']
-        results['lifeDegradation'] = [(1.0 - self.get('solarCellPerformanceDegradation'))**self.get('lifetimeNominal'),'num']
-        results['powerProductionEOL'] = [results['powerProductionBOL'][0]*results['lifeDegradation'][0],'W/m^2']
-        results['solarArrayAreaEOL'] = [self.get('avgTotalPower')/results['powerProductionEOL'][0],'m^2']
-        results['solarArrayMassEst'] = [(1.0/self.get('solarArraySpecificPerformance'))*self.get('avgTotalPower'),'kg']
+        results['solarArrayPowerOutputDaylight'] = [(self.get('avgTotalPower')*((self.get('eclipseMax')/self.get('effSA2Batt2Load'))+(self.get('daylightMax')/self.get('effSA2Load'))))/self.get('daylightMax'),'W'] # P_sa [W] - amount of power that must be produced by arrays
+        results['powerOutputSunNormalEst'] = [self.get('solarCellEff')*self.solarIlluminationIntensity[0],'W/m^2'] # P_o - power output with sun normal to the surface of the sun
+        results['powerProductionBOL'] = [results['powerOutputSunNormalEst'][0]*self.get('solarArrayInherentDegradation')*np.cos(np.deg2rad(self.sunIncidentAngleDeg[0])),'W/m^2'] # P_BOL - power production at beginning of life
+        results['lifeDegradation'] = [(1.0 - self.get('solarCellPerformanceDegradation'))**self.get('lifetimeNominal'),'num'] # L_d - life degradation
+        results['powerProductionEOL'] = [results['powerProductionBOL'][0]*results['lifeDegradation'][0],'W/m^2'] # P_EOL - power production at the end of life
+        results['solarArrayAreaEOL'] = [results['solarArrayPowerOutputDaylight'][0]/results['powerProductionEOL'][0],'m^2'] # A_sa - area of solar arrays required to produce the necessary power (P_sa)
+        results['solarArrayMassEst'] = [results['solarArrayPowerOutputDaylight'][0]*(1.0/(self.get('solarArraySpecificPerformance'))),'kg']
         self.setSubset(subsetName, results)
         print 'Subset: {}: {}\n'.format(subsetName,results)
         return self
 
+    def calculateEpsBat(self, subsetName='eps', results={}):
+        results['BattCapacity'] = [self.get('avgTotalPower')*self.get('eclipseMax')/(60*self.get('depthDischarge')*self.get('BattQuant')*self.get('effBatt2Load')),'Whr']
+        self.setSubset(subsetName, results)
+        print 'Subset: {}: {}\n'.format(subsetName,results)
+        return self
 
     def earthOblatenessModeling(satVectorEFF):
         f = 1/298.257 # f - earth flattening factor ; f = (R_e - R_p) / R_e : R_e (equatorial radius) ~ 6378.140, R_p (polar radius)

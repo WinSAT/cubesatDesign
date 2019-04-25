@@ -37,6 +37,9 @@ FireSatParams = {
 		'solarArrayInherentDegradation': [0.77, 'num'], #nominal 0.77, range 0.49-0.88
 		'solarCellPerformanceDegradation': [0.0375, 'num/yr'], #3.75% for Si, 2.75% for GaAs, 0.5% for Multijunction
 		'solarArraySpecificPerformance': [25.0,'W/kg'],
+		'BattQuant': [3,'num'], # N - number of batteries
+		'effBatt2Load':[0.9,'num'], # n - Transmission efficiency between the battery and the load
+		'depthDischarge':[.2,'num'], # DOD - Depth of Dischanrge
 	}
 }
 
@@ -76,5 +79,6 @@ sat.calculateOrbitalParameters()
 sat.calculateSensorViewingParams()
 sat.calculatePixelDataParams()
 sat.calculateEpsParams()
+sat.calculateEpsBat()
 
 from IPython import embed; embed()

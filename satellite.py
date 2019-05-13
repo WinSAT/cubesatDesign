@@ -147,7 +147,7 @@ class Satellite(object):
         self.setSubset(subsetName, results)
         return self
 
-    def calculateCustomOpticalParams(self, subset='csOptical',results={}):
+    def calculateCustomOpticalParams(self, subsetName='csOptical',results={}):
         '''
         csSensorSize
         csAspectRatio
@@ -155,15 +155,15 @@ class Satellite(object):
         csFocalLength
         '''
         results['csImageRadius'] = [(self.get('csSensorSize')/2.0),'m'] #imaging radius in m(of sensor)
-        results['csGroundRadius'] = [(self.get('csImageRadius')*(self.get('altitude')))/self.get('csFocalLength'),'m'] #max ground radius in m (cicular)
-        results['csDectectorArea'] = [np.pi*(results['csImageRadius']**2),'m^2'] #area of sensor
-        results['csFovDiameter'] = [2*atan(results['csImageRadius']/self.get('csFocalLength')),'rad'] #angular diameter of FOV in radians
+        results['csGroundRadius'] = [(results['csImageRadius'][0]*(self.get('altitude')))/self.get('csFocalLength'),'m'] #max ground radius in m (cicular)
+        results['csDectectorArea'] = [np.pi*(results['csImageRadius'][0]**2),'m^2'] #area of sensor
+        results['csFovDiameter'] = [2*np.arctan(results['csImageRadius'][0]/self.get('csFocalLength')),'rad'] #angular diameter of FOV in radians
         #areaG = pi*(groundRadius**2) #ground object FOV in m squared (circular)
-        results['csDiagonalLength'] = [(self.get('csSensorSize')/self.get('csLensFormat')*(2*(results['csGroundRadius']))),'m'] #ground radius adjusted for sensor size and lens radius 
-        results['csArea2SensorHypotenuseRatio'] = [results['csDiagonalLength']/(self.get('csSensorSize')),'num'] #finding ratio of area to sensor hypotenous
+        results['csDiagonalLength'] = [(self.get('csSensorSize')/self.get('csLensFormat')*(2*(results['csGroundRadius'][0]))),'m'] #ground radius adjusted for sensor size and lens radius
+        results['csArea2SensorHypotenuseRatio'] = [results['csDiagonalLength'][0]/(self.get('csSensorSize')),'num'] #finding ratio of area to sensor hypotenous
         results['csSensorDiagonal'] = [np.linalg.norm(self.get('csAspectRatio')),'num'] #finding sensor diagonal
-        results['csSensorRatio'] = [self.get('csSensorSize')/self.get('csSensorDiagonal'),'num'] #the ratio of the given sensor size to the ratio based on its aspects
-        results['csImageArea'] = [(results['csArea2SensorHypotenuseRatio']*(np.array(self.get('csAspectRatio'))*sensorRatio)).tolist(),'[m,m]']
+        results['csSensorRatio'] = [self.get('csSensorSize')/results['csSensorDiagonal'][0],'num'] #the ratio of the given sensor size to the ratio based on its aspects
+        results['csImageArea'] = [(results['csArea2SensorHypotenuseRatio'][0]*(np.array(self.get('csAspectRatio'))*results['csSensorRatio'][0])).tolist(),'[m,m]']
         self.setSubset(subsetName, results)
         return self
 

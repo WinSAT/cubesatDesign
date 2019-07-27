@@ -20,6 +20,7 @@ adcs: all parameters relating to the adcs
 
 import numpy as np
 import scipy.constants
+from IPython import embed
 
 class Satellite(object):
 
@@ -29,8 +30,10 @@ class Satellite(object):
         for subset in initData:
             setattr(self, subset, initData[subset])
         self.earthR = [6378.14,'km'] #[m] - Earth Radius using Spherical Model
-        self.solarIlluminationIntensity = [1367.0, 'W/m^2']
         self.sunIncidentAngleDeg = [23.5, 'deg']
+        self.earthGravConst = 3.986e14 #Earth-Gravity Constant in m3/s2
+        self.lightSpeed = 299792458.0 # speed of light in [m/s]
+        self.earthMagneticMoment = 7.96e15 #tesla/m^3
 
         '''
         for dictionary in initial_data:
@@ -91,6 +94,7 @@ class Satellite(object):
         #from IPython import embed; embed()
         if self.getU('altitude') != 'km':
             raise Exception('altitude not in km: %s' % self.getU('altitude'))
+        results['orbitalRadius'] = [(self.earthR[0]+self.get('altitude'))*1e3,'m'] #earth orbital radius
         results['period'] = [(1.658669e-4)*((self.earthR[0]+self.get('altitude')))**(1.5), 'min'] #P [mins]
         results['angularVelocity'] = [np.deg2rad(6.0/results['period'][0]), 'rad/s'] #omega [deg/s] ; <= 0.071 deg/s (max angular vel for circular orbit)
         results['groundTrackVelocity'] = [2*np.pi*self.earthR[0]/(results['period'][0]*60.0), '%s/s'%self.earthR[1]] #V_g [m/s] ; <= 7905.0 m/s for circular orbit
@@ -194,12 +198,33 @@ class Satellite(object):
 
     def calculateEpsParams(self, subsetName='eps', results={}):
         results['solarArrayPowerOutputDaylight'] = [(self.get('avgTotalPower')*((self.get('eclipseMax')/self.get('effSA2Batt2Load'))+(self.get('daylightMax')/self.get('effSA2Load'))))/self.get('daylightMax'),'W'] # P_sa [W] - amount of power that must be produced by arrays
-        results['powerOutputSunNormalEst'] = [self.get('solarCellEff')*self.solarIlluminationIntensity[0],'W/m^2'] # P_o - power output with sun normal to the surface of the sun
+        results['powerOutputSunNormalEst'] = [self.get('solarCellEff')*self.get('solarIlluminationIntensity'),'W/m^2'] # P_o - power output with sun normal to the surface of the sun
         results['powerProductionBOL'] = [results['powerOutputSunNormalEst'][0]*self.get('solarArrayInherentDegradation')*np.cos(np.deg2rad(self.sunIncidentAngleDeg[0])),'W/m^2'] # P_BOL - power production at beginning of life
         results['lifeDegradation'] = [(1.0 - self.get('solarCellPerformanceDegradation'))**self.get('lifetimeNominal'),'num'] # L_d - life degradation
         results['powerProductionEOL'] = [results['powerProductionBOL'][0]*results['lifeDegradation'][0],'W/m^2'] # P_EOL - power production at the end of life
         results['solarArrayAreaEOL'] = [results['solarArrayPowerOutputDaylight'][0]/results['powerProductionEOL'][0],'m^2'] # A_sa - area of solar arrays required to produce the necessary power (P_sa)
         results['solarArrayMassEst'] = [results['solarArrayPowerOutputDaylight'][0]*(1.0/(self.get('solarArraySpecificPerformance'))),'kg']
+        self.setSubset(subsetName, results)
+        print 'Subset: {}: {}\n'.format(subsetName,results)
+        return self
+
+    def calculateADCSParams(self, subsetName='adcs', results={}):
+        results['disturbanceTorque_gravityGradient'] = [((3*self.earthGravConst)/(2*(self.get('orbitalRadius')**3))) * np.abs(np.max(self.get('PMOI')) - np.min(self.get('PMOI'))) * (np.sin(np.deg2rad(2*self.get('nadirAngleMaxDeg')))),'Nm']
+        solarRad_F = (self.get('solarIlluminationIntensity')/self.lightSpeed) * self.get('solarSurfaceArea') * (1 + self.get('reflectanceFactor')) * (np.cos(np.deg2rad(self.get('adcsIncidenceAngle'))))
+        results['disturbanceTorque_solarRadiation'] = [solarRad_F*(self.get('centreSolarPress')-self.get('COM')),'Nm']
+        aero_F = 0.5*self.get('atmosphericDensity')*self.get('aeroDragCoeff')*self.get('aeroSurfaceArea')*(self.get('groundTrackVelocity')*1e3)**2 #km to m
+        results['disturbanceTorque_aerodynamic'] = [aero_F*(self.get('centreAeroDrag')-self.get('COM')),'Nm']
+        earthMagneticField = (2*self.earthMagneticMoment/(self.get('orbitalRadius'))**3)
+        results['disturbanceTorque_magneticField'] = [self.get('residualDipole')*earthMagneticField,'Nm']
+        maxDisturbanceTorque = np.max([results['disturbanceTorque_gravityGradient'][0],results['disturbanceTorque_solarRadiation'][0],results['disturbanceTorque_aerodynamic'][0],results['disturbanceTorque_magneticField'][0]])
+        results['reactionWheelDisturbanceRejection'] = [self.get('disturbanceMarginFactor')*maxDisturbanceTorque,'Nm']
+        results['slewTorque'] = [4*np.deg2rad(self.get('nadirAngleMaxDeg'))*np.max(self.get('PMOI'))/(self.get('slewTime_nadirAngleMaxDeg'))**2,'Nm']
+        results['momentumStorage'] = [maxDisturbanceTorque*self.get('period')*60/4.*0.707,'Nms']
+
+        results['reactionWheelTorque'] = [results['momentumStorage'][0]*self.get('componentSelectionMargin'),'Nms']
+        results['magnetTorquerTorque'] = [(maxDisturbanceTorque/earthMagneticField)*self.get('componentSelectionMargin'),'A/m^2']
+        
+        embed()
         self.setSubset(subsetName, results)
         print 'Subset: {}: {}\n'.format(subsetName,results)
         return self

@@ -1,5 +1,6 @@
 import numpy as np
 import satellite
+from IPython import embed
 
 FireSatParams = {
 	'orbital': {
@@ -44,10 +45,12 @@ FireSatParams = {
 }
 
 WinSATParams = {
-	'orbital': {
+	'orbital': { #also general parameters
 		'altitude': [500.0,'km'], #[m]
 		'inclination': [51.6,'deg'], #WinSAT
-		'lNode': [0.0, 'deg'] #TODO ?? - Instantaneous Ascending Node, RAAN? 
+		'lNode': [0.0, 'deg'], #TODO ?? - Instantaneous Ascending Node, RAAN? 
+		'solarIlluminationIntensity': [1367.0, 'W/m^2'],
+		'PMOI': [[5451073.76e-9, 5430996.67e-9, 1358707.37e-9],'[kgm^2,kgm^2,kgm^2]'], #kgm^2 - x,y,z - nadir, orthonormal, velcity vector
 	},
 	'optical': {
 		'nadirAngleMaxDeg': [25.0,'deg'], #eta [deg] - max target range from sat to off-nadir target
@@ -69,16 +72,35 @@ WinSATParams = {
 		'gsLong': [-83.062185,'deg'],
 		'gsInitCommTime': [2.0, 'min'],
 		'gsMissedPassesMargin': [2.5, 'num'] #~2-3
+	},
+	'adcs': {
+		'reflectanceFactor': [0.6, 'num'],
+		'adcsIncidenceAngle': [0, 'deg'],
+		'centreSolarPress': [0.05, 'm'],
+		'solarSurfaceArea': [0.3405*0.1,'m^2'],
+		'COM': [0, 'm'], #centre of mass
+		
+		'centreAeroDrag': [0.3405/2, 'm'],
+		'atmosphericDensity' : [1e-13,'kg/m^3'],
+		'aeroDragCoeff': [2.2,'num'],
+		'aeroSurfaceArea': [0.01, 'm^2'],
+
+		'residualDipole' : [1.0, 'A/m^2'],
+		'slewTime_nadirAngleMaxDeg': [60.0, 's'],
+
+		'disturbanceMarginFactor': [5, 'num'],
+		'componentSelectionMargin': [9, 'num']
+
 	}
+
 }
 
-sat = satellite.Satellite(FireSatParams)
+sat = satellite.Satellite(WinSATParams)
 #sat = satellite.Satellite(WinSATParams)
 
 sat.calculateOrbitalParameters()
+sat.calculateADCSParams()
 sat.calculateSensorViewingParams()
 sat.calculatePixelDataParams()
 sat.calculateEpsParams()
 sat.calculateEpsBat()
-
-from IPython import embed; embed()
